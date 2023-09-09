@@ -28,7 +28,7 @@ pub type U32Value<T> = <U32Register as Register>::Value<T>;
 #[derive(Debug, Clone)]
 pub struct SHA256Gadget {
     // each block 512 bit, split into 16 word, each stored in u32 register? 
-    // so actually this public_word should change for each block?
+    // so actually this public_word should change for each block? or is it bc air constraint independent of the trace, the gadget only defined for one block's hash process, and periodically apply?
     /// The input chunks processed into 16-words of U32 values
     pub public_word: ArrayRegister<U32Register>,
     // why there's 1024 round? is it bc for hash of dynamic length using same circuit?
@@ -213,10 +213,10 @@ impl<L: AirParameters> AirBuilder<L> {
         );
         self.input_to_bus(bus_channel_idx, round_constant_input);
 
-        // for first 16 witness, what's this w_window's value? where the value assigned?
         // The premessage state
         self.sha_premessage(clk, &w_window, &w_bit, &cycle_64, operations);
 
+        // Why u can set window value in constraint?
         // Set the window values
         for i in 1..17 {
             self.set_to_expression_transition(&w_window.get(i).next(), w_window.get(i - 1).expr());
@@ -254,6 +254,7 @@ impl<L: AirParameters> AirBuilder<L> {
             self.accumulate_expressions(&state_challenges, &[clk.expr(), hash_next.expr()]);
         self.input_to_bus_filtered(bus_channel_idx, clk_hash_next, cycle_64.end_bit.expr());
 
+        // what this set_byte_operation try to do?
         // Dummy operation because of an odd number of operations
         let dummy = self.alloc::<ByteRegister>();
         let dummy_range = ByteOperation::Range(dummy);
@@ -283,9 +284,11 @@ impl<L: AirParameters> AirBuilder<L> {
         L::Instruction: U32Instructions,
     {
         let cycle_16 = self.cycle(4);
-
+        // how this ensure first 16 w is a direct copy? seem some tricks with w_bit, end_bit and start_bit...
+        // what it mean?
         // Assert w_bit = 1 when start_bit = 1
         self.assert_expression_zero(w_bit.not_expr() * cycle_64.start_bit.expr());
+        // why?
         // Assert w_next = w whenever we are not at an end of a 16 loop
         self.assert_expression_zero_transition(
             (w_bit.expr() - w_bit.next().expr()) * cycle_16.end_bit.not_expr(),
@@ -316,7 +319,7 @@ impl<L: AirParameters> AirBuilder<L> {
         w_i = self.add_u32(&w_i, &w_window.get(7), operations);
         w_i = self.add_u32(&w_i, &s_1, operations);
 
-        // it seems to constrain w_bit not 1 then w_i must be set to w_window first index, but where w_i assign to w_window[0]? 
+        // it seems to constrain when w_bit = 0 then w_i must be set to w_window first index
         self.assert_expression_zero(w_bit.not_expr() * (w_i.expr() - w_window.get(0).expr()));
     }
 

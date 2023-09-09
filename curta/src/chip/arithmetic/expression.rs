@@ -6,8 +6,9 @@ use crate::air::parser::AirParser;
 use crate::chip::register::memory::MemorySlice;
 use crate::math::prelude::*;
 
-// how arithmetic experession translate to this? any example?
-// what trace table column represent, and row represent
+// how arithmetic experession translate to this? any example? e.g. a + b - c==0?
+// so a vector means many diff constraints on the same register (column)?
+// isn't this polynomial interpolate p(g^0)..p(g^#of row) on the value, without seeing the trace, how this polynomial generated, thought it's virtual.
 /// An abstract representation of an arithmetic expression.
 /// 
 /// An arithmetic expression is a vector of polynomials in the trace columns, i.e.,
