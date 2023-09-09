@@ -2,6 +2,7 @@ use super::cell::CellType;
 use super::memory::MemorySlice;
 use super::{Register, RegisterSerializable, RegisterSized};
 
+// why /column here, so this register can store a column of values?
 /// A register for a single element/column in the trace. The value is not constrainted.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct ElementRegister(MemorySlice);

@@ -129,6 +129,7 @@ impl<L: AirParameters> AirBuilder<L> {
         AirInstruction::Assign(instr)
     }
 
+    // could u add more comment here? here it set expression to equal to data value, assign expression to data, the direction matter.
     #[inline]
     pub fn set_to_expression_transition<T: Register>(
         &mut self,

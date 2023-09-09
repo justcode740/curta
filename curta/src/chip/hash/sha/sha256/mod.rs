@@ -27,15 +27,23 @@ pub type U32Value<T> = <U32Register as Register>::Value<T>;
 
 #[derive(Debug, Clone)]
 pub struct SHA256Gadget {
+    // each block 512 bit, split into 16 word, each stored in u32 register? 
+    // so actually this public_word should change for each block?
     /// The input chunks processed into 16-words of U32 values
     pub public_word: ArrayRegister<U32Register>,
+    // why there's 1024 round? is it bc for hash of dynamic length using same circuit?
     /// The hash states at all 1024 rounds
     pub state: ArrayRegister<U32Register>,
+    // this w_window contains 16 (sometime during computation 17 before overriding) most recently computed w value, from most recently computed to oldest in ascending order, so w.get(16) is get the oldest value
+    // new --> old
     /// The window of 16 w-values
     pub w_window: ArrayRegister<U32Register>,
+    // What does this mean? pls..
     /// Signifies when to reset the state to the initial hash
     pub end_bit: BitRegister,
-    pub(crate) end_bits_public: ArrayRegister<BitRegister>,
+    // What does this mean? pls..
+    pub(crate) end_bits_public: ArrayRegister<BitRegister>, 
+    // What does this mean? pls..
     pub(crate) w_bit: BitRegister,
     pub(crate) initial_state: ArrayRegister<U32Register>,
     pub(crate) round_constant: U32Register,
@@ -46,7 +54,7 @@ pub struct SHA256Gadget {
 pub struct SHA256PublicData<T> {
     pub public_w: Vec<U32Value<T>>,
     pub hash_state: Vec<U32Value<T>>,
-    pub end_bits: Vec<T>,
+    pub end_bits: Vec<T>, // what's end bit??
 }
 
 const ROUND_CONSTANTS: [u32; 64] = [
@@ -86,7 +94,6 @@ impl<L: AirParameters> AirBuilder<L> {
     where
         L::Instruction: U32Instructions,
     {
-        // Registers to be written to
         let w_window = self.alloc_array::<U32Register>(17);
         let w_bit = self.alloc::<BitRegister>();
         let end_bit = self.alloc::<BitRegister>();
@@ -103,6 +110,7 @@ impl<L: AirParameters> AirBuilder<L> {
 
         // Get the w value from the bus
         let w_challenges = self.alloc_challenge_array::<CubicRegister>(U32Register::size_of() + 1);
+        // no value in w_window yet so what this w_window.get(0) does?
         let clk_w =
             self.accumulate_expressions(&w_challenges, &[clk.expr(), w_window.get(0).expr()]);
         self.output_from_bus_filtered(bus_channel_idx, clk_w, w_bit.expr());
@@ -128,12 +136,15 @@ impl<L: AirParameters> AirBuilder<L> {
             let state_digest = self.accumulate_public_expressions(
                 &state_challenges,
                 &[
+                    // why want to accumulate i*64+63 here?
                     ArithmeticExpression::from_constant(L::Field::from_canonical_usize(
                         i * 64 + 63,
                     )),
                     hash_state.get_subarray(i * 8..i * 8 + 8).expr(),
                 ],
             );
+
+
             bus.output_global_value(&state_digest);
 
             let bit_digest = self.accumulate_public_expressions(
@@ -147,6 +158,7 @@ impl<L: AirParameters> AirBuilder<L> {
             );
             bus.output_global_value(&bit_digest);
 
+            // what this do? 
             for k in 0..16 {
                 let w = public_w.get(i * 16 + k);
                 let clk_expr =
@@ -161,6 +173,7 @@ impl<L: AirParameters> AirBuilder<L> {
         let round_constant_challenges =
             self.alloc_challenge_array::<CubicRegister>(U32Register::size_of() + 1);
 
+        // is it because for 1024 round it's basically same constraint (due to same computation done), so only 64 different iterations needed here, since periodic constraint automatically apply, where / how this is specified?
         for k in 0..64 {
             let round_constant_public_input_digest = self.accumulate_public_expressions(
                 &round_constant_challenges,
@@ -200,6 +213,7 @@ impl<L: AirParameters> AirBuilder<L> {
         );
         self.input_to_bus(bus_channel_idx, round_constant_input);
 
+        // for first 16 witness, what's this w_window's value? where the value assigned?
         // The premessage state
         self.sha_premessage(clk, &w_window, &w_bit, &cycle_64, operations);
 
@@ -210,6 +224,7 @@ impl<L: AirParameters> AirBuilder<L> {
 
         let hash = self.alloc_array::<U32Register>(8);
         for (h, init) in hash.iter().zip(initial_state.iter()) {
+            // first_row? so all prev stuff doesn't have any row, this initial hash value assignment is first row of whole trace table?
             self.set_to_expression_first_row(&h, init.expr());
         }
         // The SHA step phase
@@ -225,6 +240,7 @@ impl<L: AirParameters> AirBuilder<L> {
             operations,
         );
 
+        // I don't get why u need to connect this
         // Connect hash to hash next depending on end_bit
         for i in 0..8 {
             self.set_to_expression_transition(
@@ -299,6 +315,8 @@ impl<L: AirParameters> AirBuilder<L> {
         let mut w_i = self.add_u32(&w_window.get(16), &s_0, operations);
         w_i = self.add_u32(&w_i, &w_window.get(7), operations);
         w_i = self.add_u32(&w_i, &s_1, operations);
+
+        // it seems to constrain w_bit not 1 then w_i must be set to w_window first index, but where w_i assign to w_window[0]? 
         self.assert_expression_zero(w_bit.not_expr() * (w_i.expr() - w_window.get(0).expr()));
     }
 
@@ -436,24 +454,31 @@ impl SHA256Gadget {
             end_bits_values.push(F::ONE);
 
             let mut state = INITIAL_HASH;
+            // divide the padded message into N 64 bytes (512 bit) block, and process block one by one
             for chunk in padded_msg.chunks_exact(64) {
+                // get 64 w value to operate on for this block
                 let w_val = SHA256Gadget::process_inputs(chunk);
+                // make first 16 public
                 public_w_values.extend(w_val[0..16].iter().map(|x| u32_to_le_field_bytes::<F>(*x)));
+                // update state with these 64 iteration with 64 w value
                 state = SHA256Gadget::compress_round(state, &w_val, ROUND_CONSTANTS);
                 w_values.extend_from_slice(&w_val.map(u32_to_le_field_bytes::<F>));
                 hash_values.extend_from_slice(&state.map(u32_to_le_field_bytes::<F>));
             }
         });
+        // so padded message must have 1024 block?
         assert!(
             w_values.len() == 1024 * 64,
             "Padded messages lengths do not add up"
         );
 
+        
         writer.write_array(
             &self.initial_state,
             INITIAL_HASH.map(u32_to_le_field_bytes),
             0,
         );
+    
         writer.write_array(
             &self.round_constants_public,
             ROUND_CONSTANTS.map(u32_to_le_field_bytes),
@@ -679,6 +704,7 @@ mod tests {
         timed!(timing, "Write the execusion trace", {
             table.write_table_entries(&writer);
             sha_gadget.write(padded_messages, &writer);
+            // Is below same for every other program? just some end bit that's independent of the program trace?
             for i in 0..L::num_rows() {
                 writer.write_row_instructions(&generator.air_data, i);
                 let end_bit = writer.read(&sha_gadget.end_bit, i);

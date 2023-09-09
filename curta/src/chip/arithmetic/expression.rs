@@ -5,8 +5,11 @@ use super::expression_slice::ArithmeticExpressionSlice;
 use crate::air::parser::AirParser;
 use crate::chip::register::memory::MemorySlice;
 use crate::math::prelude::*;
+
+// how arithmetic experession translate to this? any example?
+// what trace table column represent, and row represent
 /// An abstract representation of an arithmetic expression.
-///
+/// 
 /// An arithmetic expression is a vector of polynomials in the trace columns, i.e.,
 /// [ P_1(q_1(x), q_2(x), ..., q_n(x)), ..., P_n(q_1(x), q_2(x), ..., q_n(x))]
 ///
