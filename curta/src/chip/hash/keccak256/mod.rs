@@ -54,7 +54,7 @@ impl<L: AirParameters> AirBuilder<L> {
     // i    input        x                       x                x            RC[i]
     // i+1  new_state
     pub fn keccak_f(&mut self,
-        operations: &mut ByteLookupOperations,
+        // operations: &mut ByteLookupOperations,
     ) -> Keccak256Gadget where
     // SHOULD it be u64instructions?
     L::Instruction: U32Instructions {
@@ -221,26 +221,32 @@ mod tests {
 
         let mut builder = AirBuilder::<L>::new();
        
-        let (mut operations, table) = builder.byte_operations();
+        // let (mut operations, table) = builder.byte_operations();
 
         // add constriant of keccak_f to the builder
-        let keccak_f_gadget = builder.keccak_f(&mut operations);
+        let keccak_f_gadget = builder.keccak_f();
       
-        builder.register_byte_lookup(operations, &table);
+        // builder.register_byte_lookup(operations, &table);
 
         let (air, trace_data) = builder.build();
 
         let generator = ArithmeticGenerator::<L>::new(trace_data);
         let writer = generator.new_writer();
+
+        // write 
         for i in 0..25 {
-            writer.write(&keccak_f_gadget.state_before_add.get(i), &u64_to_le_field_bytes(0), 0);
+            writer.write(&keccak_f_gadget.state_before_add.get(i), &u64_to_le_field_bytes(1), 0);
         }
         writer.write(&keccak_f_gadget.a, &u64_to_le_field_bytes(5), 0);
+        
+        // write state_after_add
+        for i in 0..25 {
+            writer.write(&keccak_f_gadget.state_after_add.get(i), &u64_to_le_field_bytes(6), 0);
+        }
+
+
         println!("{}", L::num_rows());
         println!("{}", generator.air_data.instructions.len());
-        for i in 0..25 {
-            writer.write(&keccak_f_gadget.state_after_add.get(i), &u64_to_le_field_bytes(5), 0);
-        }
         // for i in 0..L::num_rows() {
         //     let round_constant_value = u64_to_le_field_bytes::<F>(KECCAKF_RNDC[i % 24]);
         //     writer.write(&keccak_f_gadget.round_constant, &round_constant_value, i);
