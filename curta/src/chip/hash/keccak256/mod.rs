@@ -83,8 +83,7 @@ impl<L: AirParameters> AirBuilder<L> {
         let a = self.alloc::<U64Register>();
         for x in 0..5 {
             for y in 0..5 {
-                let res = self.add_u64(&state_after_add.get(x + y*5), &a, operations);
-                self.assert_equal_first_row(&state_after_add.get(x + y*5), &res);
+                self.assert_expressions_equal_first_row(state_after_add.get(x + y*5).expr(), state_before_add.get(x + y*5).expr() + a.expr());
             }
         }
         // theta
