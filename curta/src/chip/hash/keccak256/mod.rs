@@ -234,31 +234,13 @@ mod tests {
         let generator = ArithmeticGenerator::<L>::new(trace_data);
         let writer = generator.new_writer();
         for i in 0..25 {
-            writer.write(&keccak_f_gadget.state_before_add.get(i), &[F::ZERO; 8], 0);
+            writer.write(&keccak_f_gadget.state_before_add.get(i), &u64_to_le_field_bytes(0), 0);
         }
-        writer.write(&keccak_f_gadget.a, &[
-            F::ZERO,
-            F::ZERO,
-            F::ZERO,
-            F::ZERO,
-            F::ZERO,
-            F::ZERO,
-            F::ZERO,
-            F::from_canonical_u8(5),
-        ], 0);
+        writer.write(&keccak_f_gadget.a, &u64_to_le_field_bytes(5), 0);
         println!("{}", L::num_rows());
         println!("{}", generator.air_data.instructions.len());
         for i in 0..25 {
-            writer.write(&keccak_f_gadget.state_after_add.get(i), &[
-                F::ZERO,
-                F::ZERO,
-                F::ZERO,
-                F::ZERO,
-                F::ZERO,
-                F::ZERO,
-                F::ZERO,
-                F::from_canonical_u8(5),
-            ], 0);
+            writer.write(&keccak_f_gadget.state_after_add.get(i), &u64_to_le_field_bytes(5), 0);
         }
         // for i in 0..L::num_rows() {
         //     let round_constant_value = u64_to_le_field_bytes::<F>(KECCAKF_RNDC[i % 24]);
