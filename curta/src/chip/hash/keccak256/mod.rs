@@ -2,12 +2,14 @@ use core::borrow::Borrow;
 
 use plonky2::field::types::Field;
 
-use crate::chip::{builder::{AirBuilder}, AirParameters, trace::writer::TraceWriter, uint::{register::{U64Register, ByteArrayRegister}, bytes::lookup_table::builder_operations::ByteLookupOperations, operations::instruction::U32Instructions}, arithmetic::expression, register::{bit::BitRegister, array::ArrayRegister}};
+use crate::chip::{builder::{AirBuilder}, AirParameters, trace::writer::TraceWriter, uint::{register::{U64Register, ByteArrayRegister}, bytes::lookup_table::builder_operations::ByteLookupOperations, operations::instruction::U32Instructions}, arithmetic::expression, register::{bit::BitRegister, array::ArrayRegister, element::ElementRegister}};
 use crate::chip::register::{Register, RegisterSerializable, RegisterSized};
 
 pub struct Keccak256Gadget {
-    pub state: ArrayRegister<ByteArrayRegister<8>>,
-   pub(crate) round_constant: U64Register
+   pub state_before_add: ArrayRegister<ByteArrayRegister<8>>,
+   pub state_after_add: ArrayRegister<ByteArrayRegister<8>>,
+   pub(crate) round_constant: U64Register,
+   pub a: U64Register
 }
 
 #[derive(Debug, Clone)]
@@ -76,12 +78,13 @@ impl<L: AirParameters> AirBuilder<L> {
 
         // maybe need to boundary the initial state?
         // define boundary constraint for theta
-        let state = self.alloc_array::<U64Register>(25);
+        let state_after_add = self.alloc_array::<U64Register>(25);
+        let state_before_add = self.alloc_array::<U64Register>(25);
         let a = self.alloc::<U64Register>();
         for x in 0..5 {
             for y in 0..5 {
-                let res = self.add_u64(&state.get(x + y*5), &a, operations);
-                self.assert_equal_transition(&state.get(x + y*5).next(), &res);
+                let res = self.add_u64(&state_after_add.get(x + y*5), &a, operations);
+                self.assert_equal_first_row(&state_after_add.get(x + y*5), &res);
             }
         }
         // theta
@@ -156,8 +159,10 @@ impl<L: AirParameters> AirBuilder<L> {
         // }
 
         Keccak256Gadget {
-            state,
-            round_constant: round_const
+            state_before_add,
+            state_after_add,
+            round_constant: round_const,
+            a
         }
     }
 }
@@ -219,26 +224,49 @@ mod tests {
        
         let (mut operations, table) = builder.byte_operations();
 
+        // add constriant of keccak_f to the builder
         let keccak_f_gadget = builder.keccak_f(&mut operations);
-
+      
         builder.register_byte_lookup(operations, &table);
 
         let (air, trace_data) = builder.build();
 
         let generator = ArithmeticGenerator::<L>::new(trace_data);
         let writer = generator.new_writer();
-        for i in 0..24 {
-            writer.write(&keccak_f_gadget.state.get(i), &[F::ZERO; 8], 0);
+        for i in 0..25 {
+            writer.write(&keccak_f_gadget.state_before_add.get(i), &[F::ZERO; 8], 0);
         }
+        writer.write(&keccak_f_gadget.a, &[
+            F::ZERO,
+            F::ZERO,
+            F::ZERO,
+            F::ZERO,
+            F::ZERO,
+            F::ZERO,
+            F::ZERO,
+            F::from_canonical_u8(5),
+        ], 0);
         println!("{}", L::num_rows());
         println!("{}", generator.air_data.instructions.len());
-
-        for i in 0..L::num_rows() {
-            let round_constant_value = u64_to_le_field_bytes::<F>(KECCAKF_RNDC[i % 24]);
-            writer.write(&keccak_f_gadget.round_constant, &round_constant_value, i);
-            
-            writer.write_row_instructions(&generator.air_data, i);
+        for i in 0..25 {
+            writer.write(&keccak_f_gadget.state_after_add.get(i), &[
+                F::ZERO,
+                F::ZERO,
+                F::ZERO,
+                F::ZERO,
+                F::ZERO,
+                F::ZERO,
+                F::ZERO,
+                F::from_canonical_u8(5),
+            ], 0);
         }
+        // for i in 0..L::num_rows() {
+        //     let round_constant_value = u64_to_le_field_bytes::<F>(KECCAKF_RNDC[i % 24]);
+        //     writer.write(&keccak_f_gadget.round_constant, &round_constant_value, i);
+           
+            
+        //     writer.write_row_instructions(&generator.air_data, i);
+        // }
 
         // after one round result should be at row_index = 1
         
