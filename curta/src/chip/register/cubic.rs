@@ -8,8 +8,9 @@ use super::{Register, RegisterSerializable, RegisterSized};
 use crate::air::parser::AirParser;
 use crate::chip::arithmetic::expression::ArithmeticExpression;
 use crate::math::extension::cubic::element::CubicElement;
-use crate::math::prelude::*;
+use crate::math::prelude::*; 
 
+// ? 
 /// A register for a single element/column in the trace. The value is not constrainted.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct CubicRegister(MemorySlice);
