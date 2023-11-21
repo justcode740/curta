@@ -57,6 +57,8 @@ pub const KECCAKF_RNDC: [u64; 24] = [
 // state register
 // todo: figure out round_constant and rotation offset
 impl<L: AirParameters> AirBuilder<L> {
+    // Reference: https://keccak.team/keccak_specs_summary.html#:~:text=Pseudo%2Dcode%20description%20of%20the%20permutations
+
     // trace table layout for keccak_f
     //      state  |  state_after_theta | state_after_rhopi | state_after_chi | round_constant
     // i    input        x                       x                x            RC[i]
@@ -463,6 +465,7 @@ mod tests {
 
 // todo
 // offset in register, and constrain it for each row?
+// public input and output, how to constrain them?
 // readablity
 // opt
-//
+// 
